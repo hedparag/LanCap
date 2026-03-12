@@ -21,7 +21,7 @@ class ProfileDialog(QDialog):
 
         # Title
         title = QLabel("Edit Profile")
-        title.setStyleSheet("font-size: 15px; font-weight: bold;")
+        title.setProperty("class", "TitleLabel")
         main_layout.addWidget(title)
 
         # Separator
@@ -88,7 +88,7 @@ class PeerDetailDialog(QDialog):
 
         # Avatar + display name header
         title = QLabel(f"👤  {name}")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setProperty("class", "TitleLabel")
         layout.addWidget(title)
 
         line = QFrame()

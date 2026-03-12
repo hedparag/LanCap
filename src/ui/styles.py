@@ -7,6 +7,15 @@ def get_light_style():
         color: #000000;
     }
     
+    QPushButton {
+        padding: 4px 8px;
+    }
+    #ToolButton {
+        min-width: 0px;
+        padding: 0px;
+    }
+    
+    
     QMenuBar {
         background-color: #FFFFFF;
         border-bottom: 1px solid #D4D4D4;
@@ -143,6 +152,17 @@ def get_dark_style():
         color: #E0E0E0;
     }
     
+    QLabel {
+        color: #E0E0E0;
+    }
+    
+    .TitleLabel {
+        font-size: 16px;
+        font-weight: bold;
+        color: #FFFFFF;
+    }
+    
+    
     QMenuBar {
         background-color: #2D2D30;
         border-bottom: 1px solid #3E3E42;
@@ -200,12 +220,33 @@ def get_dark_style():
         background-color: #333333;
         color: #E0E0E0;
         border: 1px solid #555555;
-        border-radius: 2px;
-        padding: 4px;
+        border-radius: 4px;
+        padding: 4px 8px;
+    }
+    #ToolButton {
+        min-width: 0px;
+        padding: 0px;
     }
     QPushButton:hover {
         background-color: #3F3F46;
         border: 1px solid #007ACC;
+    }
+    QPushButton:pressed {
+        background-color: #007ACC;
+        color: white;
+    }
+    
+    QDialogButtonBox QPushButton {
+        min-width: 80px;
+    }
+    
+    
+    QLineEdit, QTextEdit, QPlainTextEdit {
+        background-color: #1E1E1E;
+        color: #E0E0E0;
+        border: 1px solid #3E3E42;
+        padding: 4px;
+        border-radius: 2px;
     }
     
     #UserTree {
@@ -271,6 +312,11 @@ def get_dark_style():
         background-color: #333333;
         padding: 0px;
     }
+    
+    QFrame[frameShape="4"] { /* HLine */
+        background-color: #3E3E42;
+    }
+    
     """
 
 def get_main_style():

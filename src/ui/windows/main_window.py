@@ -15,7 +15,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.setWindowTitle("LAN Messenger")
-        self.resize(320, 650)
+        self.resize(300, 550)
+        self.setMinimumSize(250, 450)
         
         # Menu Bar
         self.menu_bar = self.menuBar()
@@ -69,16 +70,20 @@ class MainWindow(QMainWindow):
 
         name_status_layout = QHBoxLayout()
         self.name_label = QLabel(self.system_name)
-        self.name_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        font_name = self.name_label.font()
+        font_name.setBold(True)
+        font_name.setPointSize(10)
+        self.name_label.setFont(font_name)
+        
         self.status_combo = QLabel("Available")
-        self.status_combo.setStyleSheet("font-size: 11px;")
+        font_status = self.status_combo.font()
+        font_status.setPointSize(8)
+        self.status_combo.setFont(font_status)
         name_status_layout.addWidget(self.name_label)
         name_status_layout.addStretch()
         name_status_layout.addWidget(self.status_combo)
 
-        self.sub_name_label = QLabel(full_sub)
-        self.sub_name_label.setStyleSheet("font-size: 10px;")
-        self.sub_name_label.setVisible(bool(full_sub))
+
         
         self.note_input = QLineEdit()
         self.note_input.setPlaceholderText("Type a note")
@@ -86,7 +91,7 @@ class MainWindow(QMainWindow):
         self.note_input.setFixedHeight(22)
         
         user_details_layout.addLayout(name_status_layout)
-        user_details_layout.addWidget(self.sub_name_label)
+
         user_details_layout.addWidget(self.note_input)
         
         self.avatar_label = QLabel("💽")
@@ -323,9 +328,7 @@ class MainWindow(QMainWindow):
             self.system_name = values['display_name']
             self.name_label.setText(self.system_name)
 
-            full_sub = f"{values['first_name']} {values['last_name']}".strip()
-            self.sub_name_label.setText(full_sub)
-            self.sub_name_label.setVisible(bool(full_sub))
+
 
             if hasattr(self, 'discovery'):
                 self.discovery.set_details(

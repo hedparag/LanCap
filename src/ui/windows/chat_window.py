@@ -11,6 +11,7 @@ class ChatWindow(QMainWindow):
         
         self.setWindowTitle(f"{user_name} - Conversation")
         self.resize(350, 450)
+        self.setMinimumSize(300, 350)
         
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -47,7 +48,11 @@ class ChatWindow(QMainWindow):
         
         # Left Toolbar buttons
         self.btn_font = QPushButton("A")
-        self.btn_font.setStyleSheet("font-weight: bold; font-family: serif; font-size: 16px;")
+        font_btn = self.btn_font.font()
+        font_btn.setBold(True)
+        font_btn.setPointSize(12)
+        font_btn.setFamily("serif")
+        self.btn_font.setFont(font_btn)
         self.btn_color = QPushButton("A/a") # Substitute icon
         self.btn_emoji = QPushButton("😊")
         self.btn_attach = QPushButton("📎")
