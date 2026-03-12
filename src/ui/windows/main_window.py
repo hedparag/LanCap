@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                               QMenuBar, QMenu, QLabel, QLineEdit, 
-                              QPushButton, QTreeWidget, QTreeWidgetItem)
+                              QPushButton, QTreeWidget, QTreeWidgetItem, QMessageBox)
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QSize
 import socket
 from src.ui.styles import get_main_style
 from src.network.discovery import PeerDiscovery
+from src.network.messaging import MessageService
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -125,6 +126,11 @@ class MainWindow(QMainWindow):
         self.discovery.peer_lost.connect(self.on_peer_lost)
         self.discovery.start()
         
+        # Messaging setup
+        self.messaging = MessageService()
+        self.messaging.message_received.connect(self.on_message_received)
+        self.messaging.start()
+        
     def on_peer_discovered(self, ip, name, status):
         # Default icons based on name slightly for visual variety
         icons = ["🌟", "🧭", "🎸", "💽", "🎢"]
@@ -157,6 +163,7 @@ class MainWindow(QMainWindow):
         item = QTreeWidgetItem(group)
         item.setSizeHint(0, QSize(-1, 36))
         item.setData(0, Qt.UserRole, name) # Store name to avoid overlapping text
+        item.setData(0, Qt.UserRole + 1, ip) # Store IP address
         
         widget = QWidget()
         layout = QHBoxLayout(widget)
@@ -186,24 +193,45 @@ class MainWindow(QMainWindow):
             return
             
         user_name = item.data(0, Qt.UserRole)
-        if not user_name:
+        target_ip = item.data(0, Qt.UserRole + 1)
+        if not user_name or not target_ip:
             return
             
+        self.open_chat(user_name, target_ip)
+
+    def open_chat(self, user_name, target_ip):
         from src.ui.windows.chat_window import ChatWindow
         
-        if user_name not in self.active_chats:
-            chat_win = ChatWindow(user_name)
-            self.active_chats[user_name] = chat_win
+        if target_ip not in self.active_chats:
+            chat_win = ChatWindow(user_name, target_ip, self.messaging)
+            self.active_chats[target_ip] = chat_win
             
-        chat_win = self.active_chats[user_name]
+        chat_win = self.active_chats[target_ip]
         chat_win.show()
         chat_win.raise_()
         chat_win.activateWindow()
+        return chat_win
+
+    def on_message_received(self, ip, text):
+        user_name = self.discovery.peers.get(ip, {}).get('name', f"Unknown User ({ip})")
+        
+        # Determine if chat window is already open and visible
+        was_visible = ip in self.active_chats and self.active_chats[ip].isVisible()
+        
+        chat_win = self.open_chat(user_name, ip)
+        chat_win.receive_message(text)
+        
+        if not was_visible:
+            # Show an alert dialog only if the chat wasn't already actively opened
+            QMessageBox.information(self, "New Message", f"{user_name} says:\n\n{text}")
 
     def closeEvent(self, event):
-        # Make sure to stop discovery logic
+        # Make sure to stop discovery and messaging logic
         if hasattr(self, 'discovery'):
             self.discovery.stop()
+        if hasattr(self, 'messaging'):
+            self.messaging.stop()
         if self.isVisible():
             self.hide()
             event.ignore()
+

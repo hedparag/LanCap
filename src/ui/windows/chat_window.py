@@ -4,8 +4,12 @@ from PySide6.QtCore import Qt
 from src.ui.styles import get_main_style
 
 class ChatWindow(QMainWindow):
-    def __init__(self, user_name="AVISHEK-NIC"):
+    def __init__(self, user_name="User", target_ip="", messaging_service=None):
         super().__init__()
+        self.user_name = user_name
+        self.target_ip = target_ip
+        self.messaging = messaging_service
+        
         self.setWindowTitle(f"{user_name} - Conversation")
         self.resize(350, 450)
         self.setStyleSheet(get_main_style())
@@ -68,17 +72,54 @@ class ChatWindow(QMainWindow):
             btn.setObjectName("ToolButton")
             toolbar_layout.addWidget(btn)
             
-        # Message Input
+        # Message Input Layout
+        input_layout = QHBoxLayout()
+        input_layout.setContentsMargins(0, 0, 0, 0)
         self.message_input = QTextEdit()
         self.message_input.setObjectName("ChatInputEdit")
         self.message_input.setFixedHeight(60) # Typical classic size
+        self.message_input.installEventFilter(self)
+        
+        self.btn_send = QPushButton("Send")
+        self.btn_send.setFixedSize(60, 60)
+        self.btn_send.clicked.connect(self.send_message)
+        
+        input_layout.addWidget(self.message_input)
+        input_layout.addWidget(self.btn_send)
         
         bottom_layout.addWidget(drag_handle)
         bottom_layout.addWidget(self.toolbar_widget)
-        bottom_layout.addWidget(self.message_input)
+        bottom_layout.addLayout(input_layout)
         
         self.splitter.addWidget(self.chat_history)
         self.splitter.addWidget(self.bottom_widget)
         self.splitter.setSizes([350, 100])
         
         self.layout.addWidget(self.splitter)
+        
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if obj == self.message_input and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
+                self.send_message()
+                return True
+        return super().eventFilter(obj, event)
+        
+    def send_message(self):
+        text = self.message_input.toPlainText().strip()
+        if text and self.messaging and self.target_ip:
+            if self.messaging.send_message(self.target_ip, text):
+                self.append_message("Me", text, "#0000FF")
+                self.message_input.clear()
+            else:
+                self.append_message("System", f"Failed to send message to {self.target_ip}", "#FF0000")
+                
+    def receive_message(self, text):
+        self.append_message(self.user_name, text, "#A52A2A")
+        
+    def append_message(self, sender, text, color):
+        from datetime import datetime
+        time_str = datetime.now().strftime("%H:%M:%S")
+        html = f"<b><font color='{color}'>{sender} ({time_str}):</font></b> {text}<br>"
+        self.chat_history.append(html)
+
