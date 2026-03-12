@@ -23,14 +23,25 @@ class LanCapTray(QSystemTrayIcon):
         self.setContextMenu(self.menu)
         
         # Connections
-        self.quit_action.triggered.connect(sys.exit)
+        self.show_action.triggered.connect(self._show_window)
+        self.quit_action.triggered.connect(self._quit_app)
         self.activated.connect(self._on_activated)
 
+    def _show_window(self):
+        if self.parent():
+            self.parent().showNormal()
+            self.parent().activateWindow()
+
+    def _quit_app(self):
+        if self.parent() and hasattr(self.parent(), 'quit_application'):
+            self.parent().quit_application()
+        else:
+            sys.exit()
+
     def _on_activated(self, reason):
-        if reason == QSystemTrayIcon.Trigger:
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
             if self.parent():
-                if self.parent().isVisible():
+                if self.parent().isVisible() and reason == QSystemTrayIcon.Trigger:
                     self.parent().hide()
                 else:
-                    self.parent().showNormal()
-                    self.parent().activateWindow()
+                    self._show_window()

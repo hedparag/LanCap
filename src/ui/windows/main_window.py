@@ -21,6 +21,9 @@ class MainWindow(QMainWindow):
         # Menu Bar
         self.menu_bar = self.menuBar()
         self.messenger_menu = self.menu_bar.addMenu("Messenger")
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.quit_application)
+        self.messenger_menu.addAction(exit_action)
         
         # View Menu for Themes
         self.view_menu = self.menu_bar.addMenu("View")
@@ -259,6 +262,7 @@ class MainWindow(QMainWindow):
 
     def open_chat(self, user_name, target_ip, activate=True):
         from src.ui.windows.chat_window import ChatWindow
+        self.highlight_peer(target_ip, False) # Clear highlight when opening
         
         if target_ip not in self.active_chats:
             chat_win = ChatWindow(user_name, target_ip, self.messaging)
@@ -286,16 +290,33 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QApplication
             winsound.MessageBeep(winsound.MB_ICONASTERISK) # Standard Windows notification chime
             QApplication.alert(chat_win, 0) # Flash taskbar indefinitely until clicked
+            self.highlight_peer(ip, True)
+
+    def highlight_peer(self, ip, highlight=True):
+        if ip in self.peer_items:
+            item = self.peer_items[ip]
+            widget = self.user_tree.itemWidget(item, 0)
+            if widget:
+                name_lbl = widget.findChild(QLabel, "PeerNameLabel")
+                if name_lbl:
+                    if highlight:
+                        name_lbl.setStyleSheet("font-weight: bold; font-size: 12px; color: #FF4500;") # Orange-Red
+                    else:
+                        # Restore default (black for light, white for dark is handled by theme if we clear)
+                        name_lbl.setStyleSheet("font-weight: bold; font-size: 12px;")
 
     def closeEvent(self, event):
-        # Make sure to stop discovery and messaging logic
+        if self.isVisible():
+            self.hide()
+            event.ignore()
+
+    def quit_application(self):
+        # Explicit shutdown from tray or menu
         if hasattr(self, 'discovery'):
             self.discovery.stop()
         if hasattr(self, 'messaging'):
             self.messaging.stop()
-        if self.isVisible():
-            self.hide()
-            event.ignore()
+        QApplication.quit()
 
     def on_tree_context_menu(self, pos: QPoint):
         item = self.user_tree.itemAt(pos)
