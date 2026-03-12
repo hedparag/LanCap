@@ -1,29 +1,28 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
-from PySide6.QtCore import Qt
+import os
+
+# Add project root to sys.path to resolve 'src' module
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from PySide6.QtWidgets import QApplication
+from src.ui.windows.main_window import MainWindow
+from src.ui.widgets.system_tray import LanCapTray
 
 def main():
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     
-    # Simple window for verification
-    window = QMainWindow()
-    window.setWindowTitle("LanCap Messenger - Setup Verification")
-    window.resize(600, 400)
+    # Initialize Main Window
+    window = MainWindow()
     
-    central_widget = QWidget()
-    layout = QVBoxLayout(central_widget)
+    # Initialize System Tray
+    logo_path = os.path.join(os.path.dirname(__file__), "ui", "resources", "logo.png")
+    tray = LanCapTray(logo_path, window)
+    tray.show()
     
-    label = QLabel("🚀 LanCap Environment Ready!")
-    label.setAlignment(Qt.AlignCenter)
-    label.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
-    
-    sub_label = QLabel("Project structure created. Virtual environment ready.")
-    sub_label.setAlignment(Qt.AlignCenter)
-    
-    layout.addWidget(label)
-    layout.addWidget(sub_label)
-    
-    window.setCentralWidget(central_widget)
+    # Show main window
     window.show()
     
     sys.exit(app.exec())
