@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         
         self.user_tree.addTopLevelItem(group_general)
         self.user_tree.setItemWidget(group_general, 0, group_widget)
+        group_general.setExpanded(True)
         self.group_general = group_general
         self.peer_items = {} # ip -> QTreeWidgetItem
         

@@ -38,6 +38,7 @@ class PeerDiscovery(QObject):
         # Allow multiple sockets to bind to this port
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         except AttributeError:
             pass
             
@@ -112,19 +113,60 @@ class PeerDiscovery(QObject):
         sock.close()
         
     def _broadcast_now(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         message = {
             'type': 'presence',
             'name': self.system_name,
             'status': self.status
         }
         data = json.dumps(message).encode('utf-8')
+        
+        # 1. Try general broadcast
         try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.sendto(data, ('<broadcast>', self.port))
+            sock.close()
+        except Exception:
+            pass
+
+        # 2. Try broadcasting specifically on all available network interfaces
+        try:
+            ips = socket.gethostbyname_ex(socket.gethostname())[2]
+            for ip in ips:
+                if ip.startswith("127."):
+                    continue
+                
+                parts = ip.split('.')
+                
+                # Guess /24 broadcast address
+                parts_24 = parts.copy()
+                parts_24[3] = '255'
+                bcast_24 = '.'.join(parts_24)
+                
+                # Guess /16 broadcast address
+                parts_16 = parts.copy()
+                parts_16[2] = '255'
+                parts_16[3] = '255'
+                bcast_16 = '.'.join(parts_16)
+                
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                try:
+                    # Bind to the specific interface adapter IP so Windows knows which NIC to send from
+                    s.bind((ip, 0))
+                    
+                    # Target 255.255.255.255
+                    s.sendto(data, ('<broadcast>', self.port))
+                    
+                    # Target explicit subnet broadcasts
+                    s.sendto(data, (bcast_24, self.port))
+                    s.sendto(data, (bcast_16, self.port))
+                except Exception:
+                    pass
+                finally:
+                    s.close()
         except Exception as e:
             pass
-        sock.close()
         
     def _broadcast_presence(self):
         while self.running:
