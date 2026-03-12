@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                               QTextEdit, QLineEdit, QPushButton, QSplitter, QLabel)
 from PySide6.QtCore import Qt
-from src.ui.styles import get_main_style
 
 class ChatWindow(QMainWindow):
     def __init__(self, user_name="User", target_ip="", messaging_service=None):
@@ -12,7 +11,6 @@ class ChatWindow(QMainWindow):
         
         self.setWindowTitle(f"{user_name} - Conversation")
         self.resize(350, 450)
-        self.setStyleSheet(get_main_style())
         
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -28,7 +26,6 @@ class ChatWindow(QMainWindow):
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
         self.chat_history.setObjectName("ChatTextEdit")
-        self.chat_history.setStyleSheet("background-color: #FFFFFF; color: #000000; font-family: 'Segoe UI', Arial; font-size: 13px;")
         
         # Bottom area (Toolbar + Input)
         self.bottom_widget = QWidget()
@@ -39,7 +36,7 @@ class ChatWindow(QMainWindow):
         # Drag handle indicator at top of bottom area (emulating standard splitter look)
         drag_handle = QLabel("------------------------")
         drag_handle.setAlignment(Qt.AlignCenter)
-        drag_handle.setStyleSheet("color: #A0A0A0; font-size: 8px; background-color: #F0F0F0; padding: 0px;")
+        drag_handle.setObjectName("DragHandle")
         
         # Toolbar
         self.toolbar_widget = QWidget()
@@ -79,7 +76,6 @@ class ChatWindow(QMainWindow):
         self.message_input = QTextEdit()
         self.message_input.setObjectName("ChatInputEdit")
         self.message_input.setFixedHeight(60) # Typical classic size
-        self.message_input.setStyleSheet("background-color: #FFFFFF; color: #000000; font-family: 'Segoe UI', Arial; font-size: 13px;")
         self.message_input.installEventFilter(self)
         
         self.btn_send = QPushButton("Send")
@@ -120,7 +116,7 @@ class ChatWindow(QMainWindow):
     def append_message(self, sender, text, color):
         from datetime import datetime
         time_str = datetime.now().strftime("%H:%M:%S")
-        # Added span style to override dark mode default text color
-        html = f"<b><font color='{color}'>{sender} ({time_str}):</font></b> <span style='color: #000000;'>{text}</span><br>"
+        # Removing span wrapper so text inherits the QTextEdit theme color
+        html = f"<b><font color='{color}'>{sender} ({time_str}):</font></b> {text}<br>"
         self.chat_history.append(html)
 

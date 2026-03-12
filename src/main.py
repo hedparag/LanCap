@@ -9,10 +9,14 @@ if project_root not in sys.path:
 from PySide6.QtWidgets import QApplication
 from src.ui.windows.main_window import MainWindow
 from src.ui.widgets.system_tray import LanCapTray
+from src.ui.theme_manager import ThemeManager
 
 def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    
+    # Initialize Global Theme
+    ThemeManager.set_theme("system")
     
     # Initialize Main Window
     window = MainWindow()

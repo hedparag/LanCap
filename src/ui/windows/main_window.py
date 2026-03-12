@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                               QMenuBar, QMenu, QLabel, QLineEdit, 
                               QPushButton, QTreeWidget, QTreeWidgetItem, QMessageBox)
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QActionGroup
 from PySide6.QtCore import Qt, QSize
 import socket
-from src.ui.styles import get_main_style
 from src.network.discovery import PeerDiscovery
 from src.network.messaging import MessageService
+from src.ui.theme_manager import ThemeManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -14,11 +14,26 @@ class MainWindow(QMainWindow):
         
         self.setWindowTitle("LAN Messenger")
         self.resize(320, 650)
-        self.setStyleSheet(get_main_style())
         
         # Menu Bar
         self.menu_bar = self.menuBar()
         self.messenger_menu = self.menu_bar.addMenu("Messenger")
+        
+        # View Menu for Themes
+        self.view_menu = self.menu_bar.addMenu("View")
+        self.theme_menu = self.view_menu.addMenu("Theme")
+        
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+        
+        for theme_name, theme_id in [("System Default", "system"), ("Light", "light"), ("Dark", "dark")]:
+            action = QAction(theme_name, self, checkable=True)
+            if ThemeManager._current_mode == theme_id:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked, tid=theme_id: ThemeManager.set_theme(tid))
+            theme_group.addAction(action)
+            self.theme_menu.addAction(action)
+            
         self.tools_menu = self.menu_bar.addMenu("Tools")
         self.help_menu = self.menu_bar.addMenu("Help")
         
@@ -45,9 +60,9 @@ class MainWindow(QMainWindow):
         
         name_status_layout = QHBoxLayout()
         self.name_label = QLabel(self.system_name)
-        self.name_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #000000;")
+        self.name_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         self.status_combo = QLabel("Available")
-        self.status_combo.setStyleSheet("color: #333333; font-size: 11px;")
+        self.status_combo.setStyleSheet("font-size: 11px;")
         name_status_layout.addWidget(self.name_label)
         name_status_layout.addStretch()
         name_status_layout.addWidget(self.status_combo)
