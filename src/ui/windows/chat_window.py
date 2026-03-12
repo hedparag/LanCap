@@ -28,6 +28,7 @@ class ChatWindow(QMainWindow):
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
         self.chat_history.setObjectName("ChatTextEdit")
+        self.chat_history.setStyleSheet("background-color: #FFFFFF; color: #000000; font-family: 'Segoe UI', Arial; font-size: 13px;")
         
         # Bottom area (Toolbar + Input)
         self.bottom_widget = QWidget()
@@ -78,6 +79,7 @@ class ChatWindow(QMainWindow):
         self.message_input = QTextEdit()
         self.message_input.setObjectName("ChatInputEdit")
         self.message_input.setFixedHeight(60) # Typical classic size
+        self.message_input.setStyleSheet("background-color: #FFFFFF; color: #000000; font-family: 'Segoe UI', Arial; font-size: 13px;")
         self.message_input.installEventFilter(self)
         
         self.btn_send = QPushButton("Send")
@@ -98,21 +100,19 @@ class ChatWindow(QMainWindow):
         self.layout.addWidget(self.splitter)
         
     def eventFilter(self, obj, event):
-        from PySide6.QtCore import QEvent
+        from PySide6.QtCore import QEvent, QTimer
         if obj == self.message_input and event.type() == QEvent.KeyPress:
             if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
-                self.send_message()
+                QTimer.singleShot(0, self.send_message)
                 return True
         return super().eventFilter(obj, event)
         
     def send_message(self):
         text = self.message_input.toPlainText().strip()
         if text and self.messaging and self.target_ip:
-            if self.messaging.send_message(self.target_ip, text):
-                self.append_message("Me", text, "#0000FF")
-                self.message_input.clear()
-            else:
-                self.append_message("System", f"Failed to send message to {self.target_ip}", "#FF0000")
+            self.append_message("Me", text, "#1155cc")
+            self.message_input.clear()
+            self.messaging.send_message(self.target_ip, text)
                 
     def receive_message(self, text):
         self.append_message(self.user_name, text, "#A52A2A")
@@ -120,6 +120,7 @@ class ChatWindow(QMainWindow):
     def append_message(self, sender, text, color):
         from datetime import datetime
         time_str = datetime.now().strftime("%H:%M:%S")
-        html = f"<b><font color='{color}'>{sender} ({time_str}):</font></b> {text}<br>"
+        # Added span style to override dark mode default text color
+        html = f"<b><font color='{color}'>{sender} ({time_str}):</font></b> <span style='color: #000000;'>{text}</span><br>"
         self.chat_history.append(html)
 
