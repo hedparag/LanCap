@@ -214,31 +214,35 @@ class MainWindow(QMainWindow):
             
         self.open_chat(user_name, target_ip)
 
-    def open_chat(self, user_name, target_ip):
+    def open_chat(self, user_name, target_ip, activate=True):
         from src.ui.windows.chat_window import ChatWindow
         
         if target_ip not in self.active_chats:
             chat_win = ChatWindow(user_name, target_ip, self.messaging)
             self.active_chats[target_ip] = chat_win
+            # If we don't activate, just show it silently in background
+            if not activate:
+                chat_win.show()
             
         chat_win = self.active_chats[target_ip]
-        chat_win.show()
-        chat_win.raise_()
-        chat_win.activateWindow()
+        if activate:
+            chat_win.show()
+            chat_win.raise_()
+            chat_win.activateWindow()
         return chat_win
 
     def on_message_received(self, ip, text):
         user_name = self.discovery.peers.get(ip, {}).get('name', f"Unknown User ({ip})")
         
-        # Determine if chat window is already open and visible
-        was_visible = ip in self.active_chats and self.active_chats[ip].isVisible()
-        
-        chat_win = self.open_chat(user_name, ip)
+        chat_win = self.open_chat(user_name, ip, activate=False)
         chat_win.receive_message(text)
         
-        if not was_visible:
-            # Show an alert dialog only if the chat wasn't already actively opened
-            QMessageBox.information(self, "New Message", f"{user_name} says:\n\n{text}")
+        # Alert using taskbar highlight and sound, instead of blocking popup
+        if not chat_win.isActiveWindow():
+            import winsound
+            from PySide6.QtWidgets import QApplication
+            winsound.MessageBeep(winsound.MB_ICONASTERISK) # Standard Windows notification chime
+            QApplication.alert(chat_win, 0) # Flash taskbar indefinitely until clicked
 
     def closeEvent(self, event):
         # Make sure to stop discovery and messaging logic
