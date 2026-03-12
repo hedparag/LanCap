@@ -5,8 +5,11 @@ class ThemeManager:
     _current_mode = "system" # system, light, dark
 
     @classmethod
-    def set_theme(cls, mode="system"):
+    def set_theme(cls, mode="system", save=True):
         cls._current_mode = mode
+        if save:
+            from src.config import ConfigManager
+            ConfigManager.set('theme', mode)
         cls.apply_theme()
 
     @classmethod

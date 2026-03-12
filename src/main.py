@@ -16,7 +16,9 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     
     # Initialize Global Theme
-    ThemeManager.set_theme("system")
+    from src.config import ConfigManager
+    theme = ConfigManager.get('theme', 'system')
+    ThemeManager.set_theme(theme, save=False)
     
     # Initialize Main Window
     window = MainWindow()

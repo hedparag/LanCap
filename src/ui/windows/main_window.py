@@ -1,12 +1,14 @@
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                              QMenuBar, QMenu, QLabel, QLineEdit, 
-                              QPushButton, QTreeWidget, QTreeWidgetItem, QMessageBox)
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                              QMenuBar, QMenu, QLabel, QLineEdit,
+                              QPushButton, QTreeWidget, QTreeWidgetItem,
+                              QMessageBox, QApplication)
 from PySide6.QtGui import QIcon, QAction, QActionGroup
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QPoint
 import socket
 from src.network.discovery import PeerDiscovery
 from src.network.messaging import MessageService
 from src.ui.theme_manager import ThemeManager
+from src.config import ConfigManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -35,6 +37,10 @@ class MainWindow(QMainWindow):
             self.theme_menu.addAction(action)
             
         self.tools_menu = self.menu_bar.addMenu("Tools")
+        profile_action = QAction("My Profile...", self)
+        profile_action.triggered.connect(self.open_profile)
+        self.tools_menu.addAction(profile_action)
+
         self.help_menu = self.menu_bar.addMenu("Help")
         
         self.central_widget = QWidget()
@@ -56,8 +62,11 @@ class MainWindow(QMainWindow):
         user_details_layout = QVBoxLayout()
         user_details_layout.setSpacing(2)
         
-        self.system_name = socket.gethostname()
-        
+        self.system_name = ConfigManager.get('display_name', socket.gethostname())
+        first = ConfigManager.get('first_name', '')
+        last  = ConfigManager.get('last_name', '')
+        full_sub = f"{first} {last}".strip()
+
         name_status_layout = QHBoxLayout()
         self.name_label = QLabel(self.system_name)
         self.name_label.setStyleSheet("font-weight: bold; font-size: 12px;")
@@ -66,6 +75,10 @@ class MainWindow(QMainWindow):
         name_status_layout.addWidget(self.name_label)
         name_status_layout.addStretch()
         name_status_layout.addWidget(self.status_combo)
+
+        self.sub_name_label = QLabel(full_sub)
+        self.sub_name_label.setStyleSheet("font-size: 10px;")
+        self.sub_name_label.setVisible(bool(full_sub))
         
         self.note_input = QLineEdit()
         self.note_input.setPlaceholderText("Type a note")
@@ -73,6 +86,7 @@ class MainWindow(QMainWindow):
         self.note_input.setFixedHeight(22)
         
         user_details_layout.addLayout(name_status_layout)
+        user_details_layout.addWidget(self.sub_name_label)
         user_details_layout.addWidget(self.note_input)
         
         self.avatar_label = QLabel("💽")
@@ -133,6 +147,8 @@ class MainWindow(QMainWindow):
         
         # Connections
         self.user_tree.itemDoubleClicked.connect(self.on_user_double_clicked)
+        self.user_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.user_tree.customContextMenuRequested.connect(self.on_tree_context_menu)
         self.active_chats = {} # keep references to chat windows
         
         # Discovery setup
@@ -146,24 +162,28 @@ class MainWindow(QMainWindow):
         self.messaging.message_received.connect(self.on_message_received)
         self.messaging.start()
         
-    def on_peer_discovered(self, ip, name, status):
-        # Default icons based on name slightly for visual variety
+    def on_peer_discovered(self, ip, name, status, first, last, designation):
         icons = ["🌟", "🧭", "🎸", "💽", "🎢"]
         avatar_icon = icons[len(name) % len(icons)]
-        
+
         if ip in self.peer_items:
-            # Update existing
             item = self.peer_items[ip]
             item.setData(0, Qt.UserRole, name)
+            item.setData(0, Qt.UserRole + 2, {'name': name, 'first_name': first,
+                                               'last_name': last, 'designation': designation,
+                                               'status': status, 'ip': ip})
             widget = self.user_tree.itemWidget(item, 0)
             if widget:
-                # Update name label in the custom widget
                 name_lbl = widget.findChild(QLabel, "PeerNameLabel")
+                sub_lbl  = widget.findChild(QLabel, "PeerSubLabel")
                 if name_lbl:
                     name_lbl.setText(f"{name} ({ip})")
+                if sub_lbl:
+                    full = f"{first} {last}".strip()
+                    sub_lbl.setText(full)
+                    sub_lbl.setVisible(bool(full))
         else:
-            # Create new
-            self.add_tree_user(self.group_general, ip, name, avatar_icon)
+            self.add_tree_user(self.group_general, ip, name, first, last, designation, status, avatar_icon)
             
     def on_peer_lost(self, ip):
         if ip in self.peer_items:
@@ -174,31 +194,49 @@ class MainWindow(QMainWindow):
                 self.group_general.takeChild(index)
             del self.peer_items[ip]
         
-    def add_tree_user(self, group, ip, name, avatar_icon):
+    def add_tree_user(self, group, ip, name, first, last, designation, status, avatar_icon):
         item = QTreeWidgetItem(group)
-        item.setSizeHint(0, QSize(-1, 36))
-        item.setData(0, Qt.UserRole, name) # Store name to avoid overlapping text
-        item.setData(0, Qt.UserRole + 1, ip) # Store IP address
-        
+        item.setSizeHint(0, QSize(-1, 48))
+        item.setData(0, Qt.UserRole,     name)
+        item.setData(0, Qt.UserRole + 1, ip)
+        item.setData(0, Qt.UserRole + 2, {'name': name, 'first_name': first,
+                                          'last_name': last, 'designation': designation,
+                                          'status': status, 'ip': ip})
+
         widget = QWidget()
-        layout = QHBoxLayout(widget)
-        layout.setContentsMargins(5, 2, 5, 2)
-        
+        row = QHBoxLayout(widget)
+        row.setContentsMargins(5, 2, 5, 2)
+        row.setSpacing(6)
+
         status_lbl = QLabel("👤")
         status_lbl.setStyleSheet("color: #0078D7; font-size: 14px;")
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(1)
+
         name_lbl = QLabel(f"{name} ({ip})")
         name_lbl.setObjectName("PeerNameLabel")
-        
+        name_lbl.setStyleSheet("font-weight: bold; font-size: 12px;")
+
+        full = f"{first} {last}".strip()
+        sub_lbl = QLabel(full)
+        sub_lbl.setObjectName("PeerSubLabel")
+        sub_lbl.setStyleSheet("font-size: 10px;")
+        sub_lbl.setVisible(bool(full))
+
+        text_col.addWidget(name_lbl)
+        text_col.addWidget(sub_lbl)
+
         avatar_lbl = QLabel(avatar_icon)
         avatar_lbl.setFixedSize(32, 32)
         avatar_lbl.setAlignment(Qt.AlignCenter)
         avatar_lbl.setStyleSheet("font-size: 18px; border: 1px solid #CCC;")
-        
-        layout.addWidget(status_lbl)
-        layout.addWidget(name_lbl)
-        layout.addStretch()
-        layout.addWidget(avatar_lbl)
-        
+
+        row.addWidget(status_lbl)
+        row.addLayout(text_col)
+        row.addStretch()
+        row.addWidget(avatar_lbl)
+
         self.user_tree.setItemWidget(item, 0, widget)
         self.peer_items[ip] = item
 
@@ -253,4 +291,48 @@ class MainWindow(QMainWindow):
         if self.isVisible():
             self.hide()
             event.ignore()
+
+    def on_tree_context_menu(self, pos: QPoint):
+        item = self.user_tree.itemAt(pos)
+        if not item or item.parent() is None:
+            return
+        peer_data = item.data(0, Qt.UserRole + 2)
+        if not peer_data:
+            return
+
+        menu = QMenu(self)
+        view_action = menu.addAction("View Profile")
+        chat_action = menu.addAction("Start Chat")
+
+        chosen = menu.exec(self.user_tree.mapToGlobal(pos))
+        if chosen == view_action:
+            from src.ui.windows.profile_dialog import PeerDetailDialog
+            dlg = PeerDetailDialog(peer_data, self)
+            dlg.exec()
+        elif chosen == chat_action:
+            self.open_chat(item.data(0, Qt.UserRole), item.data(0, Qt.UserRole + 1))
+
+    def open_profile(self):
+        from src.ui.windows.profile_dialog import ProfileDialog
+        dlg = ProfileDialog(self)
+        if dlg.exec():
+            values = dlg.get_values()
+            for key, val in values.items():
+                ConfigManager.set(key, val)
+
+            self.system_name = values['display_name']
+            self.name_label.setText(self.system_name)
+
+            full_sub = f"{values['first_name']} {values['last_name']}".strip()
+            self.sub_name_label.setText(full_sub)
+            self.sub_name_label.setVisible(bool(full_sub))
+
+            if hasattr(self, 'discovery'):
+                self.discovery.set_details(
+                    values['display_name'],
+                    values['first_name'],
+                    values['last_name'],
+                    values['designation']
+                )
+
 

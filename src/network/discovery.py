@@ -5,14 +5,20 @@ import time
 from PySide6.QtCore import QObject, Signal
 
 class PeerDiscovery(QObject):
-    peer_discovered = Signal(str, str, str) # ip, name, status
+    peer_discovered = Signal(str, str, str, str, str, str) # ip, name, status, first, last, designation
     peer_lost = Signal(str) # ip
 
     def __init__(self, port=37020):
         super().__init__()
+        from src.config import ConfigManager
         self.port = port
-        self.system_name = socket.gethostname()
-        self.peers = {} # ip -> {'name': name, 'status': status, 'last_seen': timestamp}
+        self.unique_id = socket.gethostname() # Used to uniquely identify this exact machine
+        self.system_name = ConfigManager.get('display_name', self.unique_id)
+        self.first_name = ConfigManager.get('first_name', '')
+        self.last_name = ConfigManager.get('last_name', '')
+        self.designation = ConfigManager.get('designation', '')
+        
+        self.peers = {} # ip -> {...}
         self.running = False
         self.status = "Available"
         
@@ -26,7 +32,13 @@ class PeerDiscovery(QObject):
 
     def set_status(self, status):
         self.status = status
-        # Trigger an immediate broadcast when status changes
+        self._broadcast_now()
+        
+    def set_details(self, name, first, last, designation):
+        self.system_name = name
+        self.first_name = first
+        self.last_name = last
+        self.designation = designation
         self._broadcast_now()
 
     def stop(self):
@@ -54,7 +66,7 @@ class PeerDiscovery(QObject):
                 
             # 2. Bind explicitly to each local IP to ensure Windows receives targeted UDP broadcasts
             try:
-                ips = socket.gethostbyname_ex(self.system_name)[2]
+                ips = socket.gethostbyname_ex(socket.gethostname())[2]
                 for ip in ips:
                     if ip.startswith("127."): continue
                     try:
@@ -94,27 +106,38 @@ class PeerDiscovery(QObject):
                         continue
                         
                     if message.get('type') == 'presence':
+                        sender_id = message.get('id')
                         name = message.get('name')
                         status = message.get('status', 'Available')
+                        first = message.get('first_name', '')
+                        last = message.get('last_name', '')
+                        designation = message.get('designation', '')
                         
-                        if name == self.system_name: 
-                            # Filter out ourselves
+                        # Use unique ID to filter out ourselves reliably, even if user changes display name
+                        if sender_id == self.unique_id: 
                             continue
                             
                         is_new_or_updated = False
                         if ip not in self.peers:
                             is_new_or_updated = True
-                        elif self.peers[ip]['name'] != name or self.peers[ip]['status'] != status:
-                            is_new_or_updated = True
+                        else:
+                            old = self.peers[ip]
+                            if (old.get('name') != name or old.get('status') != status or 
+                                old.get('first_name') != first or old.get('last_name') != last or 
+                                old.get('designation') != designation):
+                                is_new_or_updated = True
                             
                         self.peers[ip] = {
                             'name': name,
                             'status': status,
+                            'first_name': first,
+                            'last_name': last,
+                            'designation': designation,
                             'last_seen': current_time
                         }
                         
                         if is_new_or_updated:
-                            self.peer_discovered.emit(ip, name, status)
+                            self.peer_discovered.emit(ip, name, status, first, last, designation)
             except Exception:
                 pass
                 
@@ -135,7 +158,11 @@ class PeerDiscovery(QObject):
     def _broadcast_now(self):
         message = {
             'type': 'presence',
+            'id': self.unique_id,
             'name': self.system_name,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'designation': self.designation,
             'status': self.status
         }
         data = json.dumps(message).encode('utf-8')
