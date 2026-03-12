@@ -33,74 +33,92 @@ class PeerDiscovery(QObject):
         self.running = False
 
     def _listen_for_broadcasts(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        import select
+        sockets = []
         
-        # Allow multiple sockets to bind to this port
-        try:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        except AttributeError:
-            pass
+        def setup_sockets():
+            for s in sockets:
+                try: s.close()
+                except: pass
+            sockets.clear()
             
-        # Bind
-        try:
-            sock.bind(("", self.port))
-        except OSError as e:
-            print(f"Failed to bind discovery port {self.port}: {e}")
-            return
-            
-        sock.settimeout(1.0)
-        
-        # Get own IP addresses to avoid self-discovery
-        own_ips = set()
-        try:
-            own_ips = set(socket.gethostbyname_ex(self.system_name)[2])
-        except:
-            pass
-        own_ips.add('127.0.0.1')
+            # 1. Bind to 0.0.0.0
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.bind(("", self.port))
+                sockets.append(s)
+            except Exception:
+                pass
+                
+            # 2. Bind explicitly to each local IP to ensure Windows receives targeted UDP broadcasts
+            try:
+                ips = socket.gethostbyname_ex(self.system_name)[2]
+                for ip in ips:
+                    if ip.startswith("127."): continue
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                        s.bind((ip, self.port))
+                        sockets.append(s)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        setup_sockets()
+        last_socket_setup = time.time()
         
         while self.running:
-            try:
-                data, addr = sock.recvfrom(1024)
-                ip = addr[0]
+            current_time = time.time()
+            if current_time - last_socket_setup > 15:
+                # Refresh interfaces every 15 seconds
+                setup_sockets()
+                last_socket_setup = current_time
                 
-                try:
-                    message = json.loads(data.decode('utf-8'))
-                except:
-                    continue
+            if not sockets:
+                time.sleep(1)
+                continue
+                
+            try:
+                readable, _, _ = select.select(sockets, [], [], 1.0)
+                for sock in readable:
+                    data, addr = sock.recvfrom(1024)
+                    ip = addr[0]
                     
-                if message.get('type') == 'presence':
-                    name = message.get('name')
-                    status = message.get('status', 'Available')
-                    
-                    if name == self.system_name: 
-                        # Filter out ourselves (same host)
+                    try:
+                        message = json.loads(data.decode('utf-8'))
+                    except:
                         continue
                         
-                    current_time = time.time()
-                    
-                    is_new_or_updated = False
-                    if ip not in self.peers:
-                        is_new_or_updated = True
-                    elif self.peers[ip]['name'] != name or self.peers[ip]['status'] != status:
-                        is_new_or_updated = True
+                    if message.get('type') == 'presence':
+                        name = message.get('name')
+                        status = message.get('status', 'Available')
                         
-                    self.peers[ip] = {
-                        'name': name,
-                        'status': status,
-                        'last_seen': current_time
-                    }
-                    
-                    if is_new_or_updated:
-                        self.peer_discovered.emit(ip, name, status)
+                        if name == self.system_name: 
+                            # Filter out ourselves
+                            continue
+                            
+                        is_new_or_updated = False
+                        if ip not in self.peers:
+                            is_new_or_updated = True
+                        elif self.peers[ip]['name'] != name or self.peers[ip]['status'] != status:
+                            is_new_or_updated = True
+                            
+                        self.peers[ip] = {
+                            'name': name,
+                            'status': status,
+                            'last_seen': current_time
+                        }
                         
-            except socket.timeout:
-                pass
-            except Exception as e:
+                        if is_new_or_updated:
+                            self.peer_discovered.emit(ip, name, status)
+            except Exception:
                 pass
                 
             # Check for stale peers (not seen for 10 seconds)
-            current_time = time.time()
             stale_ips = []
             for p_ip, p_data in self.peers.items():
                 if current_time - p_data['last_seen'] > 10:
@@ -110,8 +128,10 @@ class PeerDiscovery(QObject):
                 del self.peers[stale_ip]
                 self.peer_lost.emit(stale_ip)
                 
-        sock.close()
-        
+        for s in sockets:
+            try: s.close()
+            except: pass
+
     def _broadcast_now(self):
         message = {
             'type': 'presence',

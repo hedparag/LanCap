@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
                 # Update name label in the custom widget
                 name_lbl = widget.findChild(QLabel, "PeerNameLabel")
                 if name_lbl:
-                    name_lbl.setText(name)
+                    name_lbl.setText(f"{name} ({ip})")
         else:
             # Create new
             self.add_tree_user(self.group_general, ip, name, avatar_icon)
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         
         status_lbl = QLabel("👤")
         status_lbl.setStyleSheet("color: #0078D7; font-size: 14px;")
-        name_lbl = QLabel(name)
+        name_lbl = QLabel(f"{name} ({ip})")
         name_lbl.setObjectName("PeerNameLabel")
         
         avatar_lbl = QLabel(avatar_icon)
