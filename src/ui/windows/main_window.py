@@ -3,7 +3,9 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                               QPushButton, QTreeWidget, QTreeWidgetItem)
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Qt, QSize
+import socket
 from src.ui.styles import get_main_style
+from src.network.discovery import PeerDiscovery
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -38,8 +40,10 @@ class MainWindow(QMainWindow):
         user_details_layout = QVBoxLayout()
         user_details_layout.setSpacing(2)
         
+        self.system_name = socket.gethostname()
+        
         name_status_layout = QHBoxLayout()
-        self.name_label = QLabel("PARAG(HED)")
+        self.name_label = QLabel(self.system_name)
         self.name_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #000000;")
         self.status_combo = QLabel("Available")
         self.status_combo.setStyleSheet("color: #333333; font-size: 11px;")
@@ -103,16 +107,8 @@ class MainWindow(QMainWindow):
         
         self.user_tree.addTopLevelItem(group_general)
         self.user_tree.setItemWidget(group_general, 0, group_widget)
-        group_general.setExpanded(True)
-        
-        self.add_tree_user(group_general, "AVISHEK-NIC", "🌟")
-        self.add_tree_user(group_general, "DEBJIT", "🧭")
-        self.add_tree_user(group_general, "Dev 12", "🎸")
-        self.add_tree_user(group_general, "Lalima Das", "💽")
-        self.add_tree_user(group_general, "Rahul", "🌟")
-        self.add_tree_user(group_general, "Rakesh", "🎢")
-        self.add_tree_user(group_general, "Ratul", "🎸")
-        self.add_tree_user(group_general, "Sayan", "💽")
+        self.group_general = group_general
+        self.peer_items = {} # ip -> QTreeWidgetItem
         
         self.layout.addWidget(self.header_widget)
         self.layout.addWidget(self.toolbar_widget)
@@ -122,7 +118,41 @@ class MainWindow(QMainWindow):
         self.user_tree.itemDoubleClicked.connect(self.on_user_double_clicked)
         self.active_chats = {} # keep references to chat windows
         
-    def add_tree_user(self, group, name, avatar_icon):
+        # Discovery setup
+        self.discovery = PeerDiscovery()
+        self.discovery.peer_discovered.connect(self.on_peer_discovered)
+        self.discovery.peer_lost.connect(self.on_peer_lost)
+        self.discovery.start()
+        
+    def on_peer_discovered(self, ip, name, status):
+        # Default icons based on name slightly for visual variety
+        icons = ["🌟", "🧭", "🎸", "💽", "🎢"]
+        avatar_icon = icons[len(name) % len(icons)]
+        
+        if ip in self.peer_items:
+            # Update existing
+            item = self.peer_items[ip]
+            item.setData(0, Qt.UserRole, name)
+            widget = self.user_tree.itemWidget(item, 0)
+            if widget:
+                # Update name label in the custom widget
+                name_lbl = widget.findChild(QLabel, "PeerNameLabel")
+                if name_lbl:
+                    name_lbl.setText(name)
+        else:
+            # Create new
+            self.add_tree_user(self.group_general, ip, name, avatar_icon)
+            
+    def on_peer_lost(self, ip):
+        if ip in self.peer_items:
+            item = self.peer_items[ip]
+            # Remove from tree
+            index = self.group_general.indexOfChild(item)
+            if index >= 0:
+                self.group_general.takeChild(index)
+            del self.peer_items[ip]
+        
+    def add_tree_user(self, group, ip, name, avatar_icon):
         item = QTreeWidgetItem(group)
         item.setSizeHint(0, QSize(-1, 36))
         item.setData(0, Qt.UserRole, name) # Store name to avoid overlapping text
@@ -134,6 +164,7 @@ class MainWindow(QMainWindow):
         status_lbl = QLabel("👤")
         status_lbl.setStyleSheet("color: #0078D7; font-size: 14px;")
         name_lbl = QLabel(name)
+        name_lbl.setObjectName("PeerNameLabel")
         
         avatar_lbl = QLabel(avatar_icon)
         avatar_lbl.setFixedSize(32, 32)
@@ -146,6 +177,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(avatar_lbl)
         
         self.user_tree.setItemWidget(item, 0, widget)
+        self.peer_items[ip] = item
 
     def on_user_double_clicked(self, item, column):
         # Prevent opening chat for the group header
@@ -168,6 +200,9 @@ class MainWindow(QMainWindow):
         chat_win.activateWindow()
 
     def closeEvent(self, event):
+        # Make sure to stop discovery logic
+        if hasattr(self, 'discovery'):
+            self.discovery.stop()
         if self.isVisible():
             self.hide()
             event.ignore()
